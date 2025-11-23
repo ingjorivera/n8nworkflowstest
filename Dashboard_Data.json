@@ -1,0 +1,236 @@
+{
+  "createdAt": "2025-09-08T02:24:03.234Z",
+  "updatedAt": "2025-10-02T04:18:49.680Z",
+  "id": "kd6hvFt8g7IDus5q",
+  "name": "Dashboard Data",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "854b68c3-b80e-4a85-9f65-bf185ba13fec",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "bf694ffb-5a36-43fd-8dda-d01a283cbd20",
+      "name": "Webhook",
+      "webhookId": "854b68c3-b80e-4a85-9f65-bf185ba13fec"
+    },
+    {
+      "parameters": {
+        "resource": "templates",
+        "parameters": {
+          "elementsPerPage": 3,
+          "expand": "folder",
+          "filter": "=created_by= '{{ $json.body.id }}'",
+          "sort": "-updated"
+        }
+      },
+      "type": "n8n-nodes-pocketbase.pocketBase",
+      "typeVersion": 1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "9ddea8aa-42c8-4035-993d-383f185186df",
+      "name": "Obtener templates",
+      "credentials": {
+        "pocketBaseApi": {
+          "id": "jOfTIfQCPSB46prP",
+          "name": "PocketBase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "notifications",
+        "parameters": {
+          "elementsPerPage": 10,
+          "filter": "=user='{{ $('Webhook').item.json.body.id }}'&&viewed=false",
+          "sort": "-created"
+        }
+      },
+      "type": "n8n-nodes-pocketbase.pocketBase",
+      "typeVersion": 1,
+      "position": [
+        416,
+        0
+      ],
+      "id": "85f50d1a-7e39-436b-9cfb-1c1aad111738",
+      "name": "Notificaciones",
+      "credentials": {
+        "pocketBaseApi": {
+          "id": "jOfTIfQCPSB46prP",
+          "name": "PocketBase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"notifications\":{{JSON.stringify( $json.items) }},\n\"latest_templates\":{{JSON.stringify( $('Obtener templates').item.json.items) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "c18919db-8356-4571-af97-f7dabdb2d463",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Obtener templates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener templates": {
+      "main": [
+        [
+          {
+            "node": "Notificaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificaciones": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "workflows.riverawebstudio.site",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+            "content-length": "24",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "es-US,es;q=0.9,en-US;q=0.8,en;q=0.7,es-419;q=0.6,pt;q=0.5,zh-CN;q=0.4,zh-TW;q=0.3,zh;q=0.2",
+            "content-type": "application/json",
+            "dnt": "1",
+            "origin": "http://localhost:5173",
+            "priority": "u=1, i",
+            "referer": "http://localhost:5173/",
+            "sec-ch-ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "181.52.158.225",
+            "x-forwarded-host": "workflows.riverawebstudio.site",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "e66171774b96",
+            "x-real-ip": "181.52.158.225"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "id": "2ihihv8x4lzgrpt"
+          },
+          "webhookUrl": "https://workflows.riverawebstudio.site/webhook/2c25dca1-ed94-4b19-a673-d6e06666093e",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "versionId": "58fe8c3c-afcc-4ae5-abc1-a7f26d2d7840",
+  "triggerCount": 1,
+  "shared": [
+    {
+      "createdAt": "2025-09-08T02:24:03.234Z",
+      "updatedAt": "2025-09-08T02:24:03.234Z",
+      "role": "workflow:owner",
+      "workflowId": "kd6hvFt8g7IDus5q",
+      "projectId": "PzDWRB6gh0ITQQ0d",
+      "project": {
+        "createdAt": "2025-08-19T17:52:31.778Z",
+        "updatedAt": "2025-08-19T17:52:52.939Z",
+        "id": "PzDWRB6gh0ITQQ0d",
+        "name": "Jorge Rivera <jorivera@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "createdAt": "2025-08-19T17:52:31.778Z",
+            "updatedAt": "2025-08-19T17:52:31.778Z",
+            "userId": "5d674ef0-890f-4160-82be-67577877be2a",
+            "projectId": "PzDWRB6gh0ITQQ0d",
+            "user": {
+              "createdAt": "2025-08-19T17:52:30.982Z",
+              "updatedAt": "2025-11-23T15:25:39.277Z",
+              "id": "5d674ef0-890f-4160-82be-67577877be2a",
+              "email": "jorivera@gmail.com",
+              "firstName": "Jorge",
+              "lastName": "Rivera",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-08-19T17:53:03.045Z",
+                "personalization_survey_n8n_version": "1.106.3",
+                "companySize": "<20",
+                "companyType": "saas",
+                "role": "business-owner",
+                "reportedSource": "google"
+              },
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "o8G74OUULUsxr3su",
+                "userActivatedAt": 1757268682264,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1763911536008
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2025-11-23",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": []
+}
