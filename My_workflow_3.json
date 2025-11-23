@@ -1,6 +1,6 @@
 {
   "createdAt": "2025-11-23T15:25:35.719Z",
-  "updatedAt": "2025-11-23T15:34:56.599Z",
+  "updatedAt": "2025-11-23T16:20:54.659Z",
   "id": "iTqvlvLON6pgM8Sz",
   "name": "My workflow 3",
   "active": false,
@@ -50,7 +50,7 @@
   "staticData": null,
   "meta": null,
   "pinData": {},
-  "versionId": "e72b2928-e8f6-47be-ae32-e26d723da9a9",
+  "versionId": "fbdd4c6f-b40b-4dac-8264-c53a4213c524",
   "triggerCount": 0,
   "shared": [
     {
