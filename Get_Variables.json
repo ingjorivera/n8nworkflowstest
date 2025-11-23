@@ -1,0 +1,260 @@
+{
+  "createdAt": "2025-09-09T18:22:58.307Z",
+  "updatedAt": "2025-09-10T03:30:44.992Z",
+  "id": "c6t5XbPiuJZPXXcy",
+  "name": "Get Variables",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "9ddb274a-0850-4460-8aa0-fd8e668cbe27",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -176,
+        16
+      ],
+      "id": "14dd9eff-8136-497a-af6f-d908eb37a791",
+      "name": "Webhook",
+      "webhookId": "9ddb274a-0850-4460-8aa0-fd8e668cbe27"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extractor HTML Versión Final - Estructura simplificada\n// Para usar en nodo Code de n8n\n\nconst htmlContent = $input.all()[0].json.data || '';\n\n// Función para limpiar atributos de estilo pero preservar contenido HTML\nconst limpiarElemento = (html) => {\n  if (!html) return '';\n  \n  return html\n    // Remover atributos de presentación específicos\n    .replace(/\\s+(style|class|border|cellpadding|cellspacing|width|height|bgcolor|align|valign|font-size|font-family|color)\\s*=\\s*[\"'][^\"']*[\"']/gi, '')\n    // Limpiar espacios extra entre tags\n    .replace(/\\s+>/g, '>')\n    .replace(/>\\s+</g, '><')\n    .trim();\n};\n\nconst resultado = {\n  variables: {},\n  tablas: [],\n  debug: []\n};\n\ntry {\n  // Buscar el div#variables - método más robusto\n  const variablesStart = htmlContent.search(/<div[^>]*id\\s*=\\s*[\"']variables[\"'][^>]*>/i);\n  \n  if (variablesStart === -1) {\n    resultado.debug.push('No se encontró div#variables');\n    return [{ json: { error: 'No se encontró div#variables', ...resultado } }];\n  }\n  \n  // Encontrar el tag de apertura completo\n  const openTagMatch = htmlContent.substring(variablesStart).match(/^<div[^>]*>/i);\n  if (!openTagMatch) {\n    resultado.debug.push('Error procesando tag de apertura de variables');\n    return [{ json: { error: 'Error procesando tag de apertura', ...resultado } }];\n  }\n  \n  const contentStart = variablesStart + openTagMatch[0].length;\n  \n  // Buscar el cierre correspondiente contando divs anidados\n  let depth = 1;\n  let pos = contentStart;\n  let variablesEnd = -1;\n  \n  while (depth > 0 && pos < htmlContent.length) {\n    const nextDivOpen = htmlContent.indexOf('<div', pos);\n    const nextDivClose = htmlContent.indexOf('</div>', pos);\n    \n    if (nextDivClose === -1) break;\n    \n    if (nextDivOpen !== -1 && nextDivOpen < nextDivClose) {\n      depth++;\n      pos = nextDivOpen + 4;\n    } else {\n      depth--;\n      if (depth === 0) {\n        variablesEnd = nextDivClose;\n      }\n      pos = nextDivClose + 6;\n    }\n  }\n  \n  if (variablesEnd === -1) {\n    resultado.debug.push('No se encontró cierre de div#variables');\n    return [{ json: { error: 'No se encontró cierre de div#variables', ...resultado } }];\n  }\n  \n  const variablesContent = htmlContent.substring(contentStart, variablesEnd);\n  resultado.debug.push(`Contenido variables encontrado: ${variablesContent.length} caracteres`);\n  \n  // Buscar todos los divs con atributo variable dentro de #variables\n  const variableRegex = /<div\\s+variable\\s*=\\s*[\"']([^\"']+)[\"']([^>]*)>([\\s\\S]*?)<\\/div>/gi;\n  let match;\n  \n  while ((match = variableRegex.exec(variablesContent)) !== null) {\n    const varName = match[1];           // nombre de la variable\n    const attributes = match[2];        // otros atributos del div\n    const varContent = match[3];        // contenido del div\n    \n    resultado.debug.push(`Procesando variable: ${varName}`);\n    \n    // Verificar si tiene atributo tabla=\"true\"\n    const esTabla = /tabla\\s*=\\s*[\"']true[\"']/i.test(attributes);\n    \n    if (esTabla) {\n      resultado.debug.push(`${varName} es una tabla`);\n      \n      // Procesar como tabla\n      if (varContent.trim()) {\n        // Buscar la tabla dentro del contenido\n        const tableMatch = varContent.match(/<table[^>]*>([\\s\\S]*?)<\\/table>/i);\n        \n        if (tableMatch) {\n          const tableHTML = tableMatch[1];\n          resultado.debug.push(`Tabla encontrada en ${varName}`);\n          \n          const tablaData = {\n            nombre: varName,\n            columnas: [],\n            datos: [],\n            total_filas: 0\n          };\n          \n          // Buscar filas de la tabla (puede tener thead/tbody o solo tr directamente)\n          let filas = [];\n          \n          // Primero intentar con tbody\n          const tbodyMatch = tableHTML.match(/<tbody[^>]*>([\\s\\S]*?)<\\/tbody>/i);\n          if (tbodyMatch) {\n            filas = [...tbodyMatch[1].matchAll(/<tr[^>]*>([\\s\\S]*?)<\\/tr>/gi)];\n            resultado.debug.push(`Filas encontradas en tbody: ${filas.length}`);\n          } else {\n            // Si no hay tbody, buscar tr directamente\n            filas = [...tableHTML.matchAll(/<tr[^>]*>([\\s\\S]*?)<\\/tr>/gi)];\n            resultado.debug.push(`Filas encontradas directamente: ${filas.length}`);\n          }\n          \n          if (filas.length > 0) {\n            // La primera fila son los headers\n            const headerRow = filas[0];\n            const headerCells = [...headerRow[1].matchAll(/<t[dh][^>]*>([\\s\\S]*?)<\\/t[dh]>/gi)];\n            \n            const columnKeys = [];\n            \n            headerCells.forEach((cell, idx) => {\n              const headerText = cell[1].replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();\n              let key = headerText.toLowerCase()\n                .replace(/[áàäâ]/g, 'a')\n                .replace(/[éèëê]/g, 'e')\n                .replace(/[íìïî]/g, 'i')\n                .replace(/[óòöô]/g, 'o')\n                .replace(/[úùüû]/g, 'u')\n                .replace(/ñ/g, 'n')\n                .replace(/\\s+/g, '_')\n                .replace(/[^a-z0-9_]/g, '');\n              \n              if (!key) key = `col_${idx + 1}`;\n              \n              columnKeys.push(key);\n              tablaData.columnas.push({\n                indice: idx,\n                nombre: headerText,\n                key: key\n              });\n            });\n            \n            resultado.debug.push(`Columnas procesadas: ${columnKeys.length}`);\n            \n            // Procesar filas de datos (saltear la primera que son headers)\n            for (let i = 1; i < filas.length; i++) {\n              const row = filas[i];\n              const cells = [...row[1].matchAll(/<td[^>]*>([\\s\\S]*?)<\\/td>/gi)];\n              \n              if (cells.length > 0) {\n                const rowData = {};\n                \n                cells.forEach((cell, cellIdx) => {\n                  const key = columnKeys[cellIdx] || `col_${cellIdx + 1}`;\n                  const cellContent = cell[1];\n                  \n                  // Limpiar el contenido de la celda pero preservar HTML estructural\n                  const contenidoLimpio = limpiarElemento(cellContent);\n                  \n                  rowData[key] = contenidoLimpio;\n                });\n                \n                tablaData.datos.push(rowData);\n              }\n            }\n            \n            tablaData.total_filas = tablaData.datos.length;\n            resultado.tablas.push(tablaData);\n            resultado.debug.push(`Tabla ${varName} procesada: ${tablaData.total_filas} filas de datos`);\n          }\n        } else {\n          resultado.debug.push(`${varName} marcada como tabla pero sin contenido <table>`);\n          // Agregar tabla vacía\n          resultado.tablas.push({\n            nombre: varName,\n            columnas: [],\n            datos: [],\n            total_filas: 0\n          });\n        }\n      } else {\n        resultado.debug.push(`${varName} es tabla pero está vacía`);\n        // Agregar tabla vacía\n        resultado.tablas.push({\n          nombre: varName,\n          columnas: [],\n          datos: [],\n          total_filas: 0\n        });\n      }\n      \n    } else {\n      // Variable simple - limpiar contenido pero preservar HTML\n      const contenidoLimpio = limpiarElemento(varContent);\n      \n      // Si después de limpiar no queda HTML significativo, extraer solo texto\n      const soloTexto = contenidoLimpio.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();\n      \n      if (contenidoLimpio === soloTexto || contenidoLimpio.length < soloTexto.length * 1.2) {\n        resultado.variables[varName] = soloTexto;\n      } else {\n        resultado.variables[varName] = contenidoLimpio;\n      }\n      \n      resultado.debug.push(`Variable ${varName} procesada`);\n    }\n  }\n  \n} catch (error) {\n  resultado.debug.push(`Error: ${error.message}`);\n}\n\n// Resultado final\nreturn [{\n  json: {\n    variables: resultado.variables,\n    tablas: resultado.tablas,\n    resumen: {\n      variables_extraidas: Object.keys(resultado.variables).length,\n      tablas_extraidas: resultado.tablas.length,\n      fecha_procesamiento: new Date().toISOString()\n    },\n    debug: resultado.debug\n  }\n}];\n\n/*\nRESULTADO ESPERADO PARA TU HTML:\n\n{\n  \"variables\": {\n    \"ruta\": \"Bancoldex3\",\n    \"logotipo\": \"https://bancoldexqa.binaps.cloud/...\",\n    \"titulo-informe\": \"Informe Plan de Acción\",\n    \"t-auditoria\": \"Titulo auditoria\",\n    \"auditoria\": \"nombre de auditoria prueba humo produccion\",\n    \"t-fecha-creacion-plan\": \"Fecha Creación del Plan\",\n    \"fecha-creacion-plan\": \"2022-11-02\",\n    \"t-de\": \"De:\",\n    \"de\": \"prueba SAML\",\n    \"t-para\": \"Para:\",\n    \"para\": \"Auditado\"\n  },\n  \"tablas\": [\n    {\n      \"nombre\": \"tabla1\",\n      \"columnas\": [\n        {\"indice\": 0, \"nombre\": \"Prueba\", \"key\": \"prueba\"},\n        {\"indice\": 1, \"nombre\": \"Observacion\", \"key\": \"observacion\"},\n        {\"indice\": 2, \"nombre\": \"Calificacion de la Prueba\", \"key\": \"calificacion_de_la_prueba\"},\n        {\"indice\": 3, \"nombre\": \"Oportunidad de mejoramiento sugerida\", \"key\": \"oportunidad_de_mejoramiento_sugerida\"},\n        {\"indice\": 4, \"nombre\": \"Color\", \"key\": \"color\"}\n      ],\n      \"datos\": [\n        {\n          \"prueba\": \"prueba humo en pn   prueba humo en pn   prueba humo en pn\",\n          \"observacion\": \"prueba humo en pn   documentacion resumen o procedimiento   CRITERIO CONDICION CAUSA CONSECUENCIA\",\n          \"calificacion_de_la_prueba\": \"Moderado\",\n          \"oportunidad_de_mejoramiento_sugerida\": \"null\",\n          \"color\": \"#FFFF00\"\n        }\n      ],\n      \"total_filas\": 1\n    },\n    {\n      \"nombre\": \"tabla2\",\n      \"columnas\": [],\n      \"datos\": [],\n      \"total_filas\": 0\n    }\n  ]\n}\n\nCARACTERÍSTICAS DE ESTA VERSIÓN:\n✅ Busca solo en div#variables\n✅ Identifica variables con tabla=\"true\"\n✅ Preserva HTML dentro de celdas pero limpia atributos\n✅ Maneja tablas vacías\n✅ Limpia align, style, etc. pero mantiene <b>, <strong>, etc.\n✅ No busca elementos anidados\n✅ Procesa solo divs de primer nivel dentro de #variables\n*/"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "70f51c12-e6e3-4b40-8ad4-873686fba27f",
+      "name": "Extract variables",
+      "alwaysOutputData": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        48,
+        16
+      ],
+      "id": "4bec3430-99e0-4e97-b505-d9d45ffbf7a4",
+      "name": "Get HTML",
+      "alwaysOutputData": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        800,
+        -16
+      ],
+      "id": "0331ae72-d8df-400a-965a-86fb56f84352",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"error\": \"No valid html\"\n}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        256,
+        176
+      ],
+      "id": "ab844b75-cb80-4aeb-95ec-001bc436bc87",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"error\": \"no values found\"\n}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        160
+      ],
+      "id": "686c631f-0f39-4c69-b639-3dcb6b29a75a",
+      "name": "Respond to Webhook2"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract variables": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get HTML": {
+      "main": [
+        [
+          {
+            "node": "Extract variables",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "workflows.riverawebstudio.site",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+            "content-length": "16",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "es-US,es;q=0.9,en-US;q=0.8,en;q=0.7,es-419;q=0.6,pt;q=0.5,zh-CN;q=0.4,zh-TW;q=0.3,zh;q=0.2",
+            "content-type": "application/json",
+            "dnt": "1",
+            "origin": "http://localhost:5173",
+            "priority": "u=1, i",
+            "referer": "http://localhost:5173/",
+            "sec-ch-ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "181.52.158.225",
+            "x-forwarded-host": "workflows.riverawebstudio.site",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "e66171774b96",
+            "x-real-ip": "181.52.158.225"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "url": "https://testdata.riverawebstudio.site"
+          },
+          "webhookUrl": "https://workflows.riverawebstudio.site/webhook/9ddb274a-0850-4460-8aa0-fd8e668cbe27",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "versionId": "fe65a1c5-39c1-4931-89d6-87409ddbe237",
+  "triggerCount": 1,
+  "shared": [
+    {
+      "createdAt": "2025-09-09T18:22:58.307Z",
+      "updatedAt": "2025-09-09T18:22:58.307Z",
+      "role": "workflow:owner",
+      "workflowId": "c6t5XbPiuJZPXXcy",
+      "projectId": "PzDWRB6gh0ITQQ0d",
+      "project": {
+        "createdAt": "2025-08-19T17:52:31.778Z",
+        "updatedAt": "2025-08-19T17:52:52.939Z",
+        "id": "PzDWRB6gh0ITQQ0d",
+        "name": "Jorge Rivera <jorivera@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "createdAt": "2025-08-19T17:52:31.778Z",
+            "updatedAt": "2025-08-19T17:52:31.778Z",
+            "userId": "5d674ef0-890f-4160-82be-67577877be2a",
+            "projectId": "PzDWRB6gh0ITQQ0d",
+            "user": {
+              "createdAt": "2025-08-19T17:52:30.982Z",
+              "updatedAt": "2025-11-23T15:25:39.277Z",
+              "id": "5d674ef0-890f-4160-82be-67577877be2a",
+              "email": "jorivera@gmail.com",
+              "firstName": "Jorge",
+              "lastName": "Rivera",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-08-19T17:53:03.045Z",
+                "personalization_survey_n8n_version": "1.106.3",
+                "companySize": "<20",
+                "companyType": "saas",
+                "role": "business-owner",
+                "reportedSource": "google"
+              },
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "o8G74OUULUsxr3su",
+                "userActivatedAt": 1757268682264,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1763911536008
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2025-11-23",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": []
+}
